@@ -1,0 +1,8 @@
+# Environments 
+.env 
+
+# Django #
+*.log
+*.pot
+*.pyc
+media
