@@ -1,6 +1,4 @@
 from django.db.models import Sum
-from django.shortcuts import render
-from django.http import HttpResponse
 from rest_framework.response import Response
 from .serializers import RegisterSerializer, LoginSerializers, ActivitySerializer, PurchaseSerializer
 from rest_framework.views import APIView
@@ -9,7 +7,7 @@ from django.contrib.auth import authenticate, login
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 from .models import Activity, Package, PurchaseActivity
-
+from collections import Counter
 
 # Create your views here.
 class ResgistrationsView(APIView):
@@ -17,7 +15,7 @@ class ResgistrationsView(APIView):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({'msg': 'Success data created', 'status': status.HTTP_200_OK})
+            return Response({'Msg': 'User register Successfully!', 'status': status.HTTP_200_OK})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -30,62 +28,71 @@ class LoginView(APIView):
             user = authenticate(username=username, password=password)
             if user is not None:
                 login(request, user)
-                user = RefreshToken.for_user(user)
-                return Response({'refresh': str(user), 'access': str(user.access_token), })
+                token = RefreshToken.for_user(user)
+                return Response({'refresh': str(token), 'access': str(token.access_token)}, status=200)
             else:
-                return Response({'msg': 'user is Login', 'status': status.HTTP_200_OK})
+                return Response({'Msg': 'User login successfully!', 'status': status.HTTP_200_OK})
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ActivityView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = ActivitySerializer
 
     def get(self, request):
-        activity = Activity.objects.all()
-        serializer = ActivitySerializer(activity, many=True)
+        user = request.user
+        activity = Activity.objects.filter(user=user)
+        serializer = self.serializer_class(activity, many=True)
         return Response(serializer.data, status=200)
 
     def post(self, request):
         user = request.user
-        serializer = ActivitySerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         package = PurchaseActivity.objects.all().last()
         if package == None:
-            return Response({'msg': 'please purchase package'})
-        else:
-            pass
+            return Response({'Msg': 'Please purchase new package'}, status=200)
+
         packages = package.grandtotal
-        print('-----------packages------------', packages)
         activity = Activity.objects.filter(user=user).count()
-        print('------------------activity------------', activity)
 
         if packages == activity:
-            return Response({'msg': 'your package limit is closed please purchase a new package'})
+            return Response({'msg': 'Package limit has ended please purchase a new package'}, status=200)
 
         if serializer.is_valid():
             serializer.save(user=user)
-            return Response({'msg': 'Activity created sucessfully', 'status': status.HTTP_200_OK})
+            return Response({'msg': 'Activity created successfully', 'status': status.HTTP_200_OK})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PurchaseView(APIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = PurchaseSerializer
+
+    def get(self, request):
+        user = request.user
+        purchases = PurchaseActivity.objects.filter(user=user)
+        response = Counter(obj.package.package_name for obj in purchases)
+        # gold = PurchaseActivity.objects.filter(package__package_name__startswith="gold",user=user).count()
+        # silver = PurchaseActivity.objects.filter(package__package_name__startswith="silver",user=user).count()
+        # bronze = PurchaseActivity.objects.filter(package__package_name__startswith="bronze",user=user).count()
+        # response ={"gold":gold,"silver":silver,"bronze":bronze}        
+        return Response(response,status=200)
 
     def post(self, request):
         user = request.user
-        serializer = PurchaseSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
         packages = request.data['package']
-        package = Package.objects.get(id=packages)
+        try:
+            package = Package.objects.get(id=packages)
+        except package.DoesNotExist:
+                return Response({'msg': f'This {package} dose not exist!'},status=200)
         package_activity = package.total_activity
         total_activity_sum = PurchaseActivity.objects.filter(user=user).aggregate(
             Sum('total_activity'))['total_activity__sum'] or 0
 
         totalactivity = package_activity + total_activity_sum
         if serializer.is_valid():
-            serializer.save(
-                user=user, total_activity=package_activity, grandtotal=totalactivity)
-
-            return Response({'msg': 'your package purchase successfully !', 'status': status.HTTP_200_OK})
+            serializer.save(user=user, total_activity=package_activity, grandtotal=totalactivity)
+            return Response({'msg': 'Package purchase successfully!', 'status': status.HTTP_200_OK})
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
