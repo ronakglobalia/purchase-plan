@@ -2,9 +2,8 @@ from django.urls import path
 from .import views
 
 urlpatterns = [
-    path('Resgistrations/', views.ResgistrationsView.as_view()),
-    path('Login/', views.LoginView.as_view()),
-    path('Activity/', views.ActivityView.as_view()),
-    path('Purchase/', views.PurchaseView.as_view()),
-
+    path('resgistrations/', views.ResgistrationsView.as_view(), name="resgistrations"),
+    path('login/', views.LoginView.as_view(), name="login"),
+    path('activity/', views.ActivityView.as_view(), name="activity"),
+    path('purchase/', views.PurchaseView.as_view(), name="purchase"),
 ]
